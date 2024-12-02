@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Using Lightning to transmit instructions to a Botnet</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Fall 2024 Botnet using Lightning Project</h1>
+        <nav>
+            <ul>
+                Contributors: Abraham Watkins, Estela , Joshua Kramer, <br>
+                Instrutor: Ahmet Kurt
+            </ul>
+        </nav>
+    </header>
+
+    <section id="Presection">
+        <h2>Before you start.</h2>
+        <p>Download the Ubuntu image to run a virtual machine.<br>
+            <a href=https://ubuntu.com/download/desktop target="_blank">https://ubuntu.com/download/desktop</a>.
+        </p>
+    </section>
+
+    <section id="section1">
+        <h2>Section Links</h2>
+        <p>
+            <li><a href="#section2">Installing Bitcoin Core</a></li>
+            <li><a href="#section3">Core Lightning Installation</a></li>
+            <li><a href="#section4">Installing Nosie Plugin</a></li>
+            <li><a href="#section5">Creating a wallet</a></li>
+            <li><a href="#section6">Second Node and Channeling Setup</a></li>
+            <li><a href="#section7">Payload generation</a></li>
+            <li><a href="#section8">NodeManager</a></li>
+            <li><a href="#section9">NoiseManager</a></li>
+            <li><a href="#section10">Botmaster</a></li>
+            <li><a href="#section11">Encoutered Problems</a></li>
+            <li><a href="#section12">Bitcoin Core Commands</a></li>
+            <li><a href="#section13">Lightning Node Commands</a></li>
+            <li><a href="#section14">Docker Commands</a></li>
+            <li><a href="#section15">Network Debugging and Maintenance</a></li>
+            <li><a href="#section16">System Monitoring and troubleshooting</a></li>
+            <li><a href="#section17">Noise Commands</a></li>
+
+        </p>
+    </section>
+
+    <section id="section2">
+        <h2>Installing Bitcoin Core</h2>
+        <p>
+            Sources:<br>
+            Bitcoin Core Download<br>
+            <a href=https://bitcoincore.org/en/download/ target="_blank">https://bitcoincore.org/en/download/</a>.
+            <br>
+            <br>
+            Tutorial to help with installation of Bitcoin Core on Regtest<br>
+            <a href=https://medium.com/coinmonks/a-complete-beginners-guide-to-setting-up-a-bitcoin-lightning-network-on-linux-6a388d4103d4 target="_blank">https://medium.com/coinmonks/a-complete-beginners-guide-to-setting-up-a-bitcoin-lightning-network-on-linux-6a388d4103d4</a>.<br>
+            <br>
+            1. Make sure that port 8333 is open. This is the default port that BTC uses to connect to the network<br>
+            ~$ sudo ufw allow 8333<br>
+            <br>
+            2. Download in your home (~) directory the latest version of BTC Core from:<br>
+            <a href=https://bitcoin.org/en/download target="_blank">https://bitcoin.org/en/download</a>.<br>
+            <br>
+            3. Right click on Linux (tgz) and copy link address.<br>
+            <img class="Default_Image" src="Images/Section2_Step3.png" />
+            <br>
+            4. Then on your terminal type and enter :<br>
+            ~$ sudo wget <copied link address for download><br>
+            <br>
+            5. Unpack the downloaded Bitcoin Core file<br>
+            ~$ sudo tar -zxvf bitcoin-<version>-x86_64-linux-gnu.tar.gz<br>
+                <br>
+            6. View the new directory name ~$ls<br>
+            <img class="Default_Image" src="Images/Section2_Step6.png" />
+            <br>
+            7. Navigate to the Binary Folder<br>
+        	~$ cd bitcoin-<version>/bin<br>
+                <br>
+            8. To start Bitcoin core in regtest mode, run this command:<br>
+        	~$ ./bitcoind -regtest -daemon<br>
+            <img class="Default_Image" src="Images/Section2_Step8.png" />
+            <br>
+            9. To make things easier every time we run Bitcoin core, we’ll setup a configuration file. First stop bitcoin core using:<br>
+            ~$ ./bitcoin-cli -regtest stop<br>
+            <img class="Default_Image" src="Images/Section2_Step9.png" />
+            <br>
+            10. Create the configuration file bitcoin.conf in ~/.bitcoin/ <br>
+            <img class="Default_Image" src="Images/Section2_Step10.png" />
+            <br>
+            11. Make the configuration file with:<br>
+            ~$ nano ~/.bitcoin/bitcoin.conf<br>
+            <img class="Default_Image" src="Images/Section2_Step11.png" /> <br>
+            <br>
+            The bitcoin.conf file configures how your Bitcoin Core node operates.
+            It defines network settings, how Bitcoin Core listens for incoming RPC connections, 
+            and other parameters needed for smooth interaction with tools like the Lightning Network.
+            <br>
+            The bitcoin.conf configuration determines how Bitcoin Core listens for incoming RPC connections.<br>
+            <br><br>
+            Server: Enables RPC control.
+            <br><br>
+            Daemon: Runs Bitcoin Core in the background.
+            <br><br>
+            Txindex: Indexes transactions for faster lookups.
+            <br><br>
+            Prune=n: Keeps the full blockchain for compatibility with Lightning, node will keep all historical block data.
+            <br><br>
+            rpcuser and rpcpassword: These fields define credentials for accessing Bitcoin Core over RPC. They allow external tools (e.g., bitcoin-cli or Lightning Network nodes) to communicate with the Bitcoin daemon securely.
+            <br><br>
+            RPC Port: This is the listening port for RPC requests. RPC allows external services to control and query Bitcoin Core, such as retrieving blockchain data or sending transactions. 
+            Multiple Bitcoin nodes need unique RPC ports to avoid conflicts.
+            <br>
+            If multiple Bitcoin nodes are running on the same machine, they need to use different RPC ports to avoid conflicts. This port must match what the client (e.g., Lightning node) expects to connect properly
+            <br><br>
+            rpcbind: Defines which network interface the node should bind for RPC communication. In this case, it's commented out, which defaults it to bind to all available interfaces.
+            <br><br>
+            rpcallowip: Whitelists IP ranges that can access the Bitcoin node’s RPC server. You’ve allowed local IPs (like 127.0.0.1) and private IP ranges (10.0.0.0/8, 192.0.0.0/8). This is important for security, preventing unauthorized access from external networks.
+            <br><br>
+            ZeroMQ Ports: These settings enable ZeroMQ (ZMQ) integration, which allows external programs to subscribe to real-time updates from the Bitcoin Core node (e.g., new blocks or transactions). This is useful in high-frequency trading or for monitoring the blockchain in real-time.<br>
+            <br><br>
+            Fallback Fee: This will ensure transactions aren’t blocked when fee estimation fails (common in regtest). This prevents issues when sending funds to Lightning addresses.<br>
+            <br>
+            12. Run bitcoind from ~/bitcoin-<version>/bin<br>
+            <img class="Default_Image" src="Images/Section2_Step12.png" /> <br>
+            <br>
+            13. rpcauth.py<br>
+            <br>
+            Instead of using plaintext rpcuser and rpcpassword in the bitcoin.conf file, we will set up rpcauth for a more secure authentication method between lightningd and bitcoind.<br>
+            Go to <a href=https://github.com/bitcoin/bitcoin/blob/master/share/rpcauth/rpcauth.py target="_blank">https://github.com/bitcoin/bitcoin/blob/master/share/rpcauth/rpcauth.py</a>.<br>
+            <br>
+            In your Downloads directory download the raw version of rpcauth.py<br>
+            ~/Downloads$ wget <a href=https://raw.githubusercontent.com/bitcoin/bitcoin/master/share/rpcauth/rpcauth.py target="_blank">https://raw.githubusercontent.com/bitcoin/bitcoin/master/share/rpcauth/rpcauth.py</a>.
+            <br>
+            Change rpcauth.py to be an executable:<br>
+            ~/Downloads$ chmod +x rpcauth.py<br>
+            <br>
+            Run the command followed by a the Username and Password you’ll want to configure 	bitcoin.conf:<br>
+            ~/Downloads$ ./rpcauth.py 'username' 'password'<br>
+            <br>
+            For example:<br>
+            ~/Downloads$ ./rpcauth.py 'CYBER499' 'CYBER499'<br>
+            <img class="Default_Image" src="Images/Section2_Step13_P1.png" /> <br>
+            <br>
+            Copy and paste the generated string into bitcoin.conf – This will be needed to authenticate into your Bitcoin node, using your username and password.
+            <img class="Default_Image" src="Images/Section2_Step13_P2.png" /> <br>
+            <br>
+            You can comment or delete the rpcuser and rpcpassword lines, I’ll leave them for now. The rpcauth setting in this bitcoin.conf is used for authenticating RPC clients that connect to Bitcoin Core. This setting is specifically for bitcoind to verify clients (like Core Lightning or other services) that are accessing its RPC interface.<br>
+            <br>
+            Later, in lightning.conf, you need to provide the matching rpcuser and rpcpassword settings to authenticate with Bitcoin Core.<br>
+            <br>
+            Save changes, and restart bitcoin node.<br>
+            <br>
+            ~/.bitcoin$ bitcoin-cli stop<br>
+            <br>
+            bitcoind -regtest -daemon<br>
+            <br>
+            14. Make sure you can run bitcoind from anywhere. To do this, add the path of your Bitcoin Core binaries to your .bashrc:<br>
+            ~$ nano ~/.bashrc export PATH=$PATH:/home/<user>/bitcoin-<version>/bin<br>
+            <br>
+            Then reload the .bshrc file:<br>
+            ~$ source ~/.bashrc<br>
+            <br>
+            Then, you can start bitcoind in regtest mode:<br>
+            ~$ bitcoind -regtest -daemon<br>
+            <br>
+            To verify that Bitcoin Core is running in regtest you can query it using bitcoin-cli:<br>
+            ~$ bitcoin-cli -regtest getblockchaininfo<br>
+            <br>
+            You should see output confirming that the blockchain is in regtest mode.<br>
+            <img class="Default_Image" src="Images/Section2_Step14.png" /> <br>
+        </p>
+    </section>
+
+    <section id="section3">
+        <h2>Core Lightning Installation</h2>
+        <p>
+            Sources:<br>
+            <a href="https://github.com/startimeahmet/D-LNBot" target="_blank">https://github.com/startimeahmet/D-LNBot</a><br>
+            <a href="https://github.com/lightningd/plugins/tree/master/archived/noise " target="_blank">https://github.com/lightningd/plugins/tree/master/archived/noise </a><br>
+            <a href="https://hub.docker.com/r/elementsproject/lightningd/" target="_blank">https://hub.docker.com/r/elementsproject/lightningd/</a><br>
+            <br>
+            Steps:
+            <br>
+            c-lightning is a lightweight, highly customizable, and standard-compliant implementation of the Lightning Network protocol. It focuses on flexibility and modularity, making it ideal for various use cases, from running on small devices to large infrastructure setups.<br>
+            <br>
+            To simplify the installation process, we’ll download lightningd by pulling an official image from Docker. This ensures that you are working with a pre-configured environment, reducing the manual steps needed to compile or configure the software from source.<br>
+            <br>
+            1.   Pull the Core Lightning Docker Image – Use Docker to pull the latest lightningd image from the Elements Project Docker repository:<br>
+            ~$ docker pull elementsproject/lightningd<br>
+            <img class="Default_Image" src="Images/Section3_Step1.png" /> <br>
+            <br>
+            This command downloads the lightningd Docker image, allowing you to run the software inside a containerized environment.<br>
+            <br>
+            2. After the image is pulled, verify that it has been downloaded correctly by listing your Docker images:<br>
+            ~$ docker images<br>
+            (Look for the elementsproject/lightningd repository in the output)<br>
+            <img class="Default_Image" src="Images/Section3_Step2.png" /> <br>
+            <br>
+            3.   To quickly test the image, you can run the lightningd daemon using a basic Docker run command:<br>
+            ~$ docker run elementsproject/lightningd<br>
+            <br>
+            However, you will need to mount your configuration files and specify the network to connect to Bitcoin Core. Before that, let’s continue on with setting up the configuration file for lightningd<br>
+            <br>
+            4. Create a lightning.conf configuration file for lightningd:<br>
+            ~$ nano ~/.lightning/lightning.conf<br>
+            <br>            
+            For example:<br>
+            <img class="Default_Image" src="Images/Section3_Step4.png" /> <br>
+            <br>
+            This file specifies the network configuration the lightning node operates on. It establishes the RPC User/Password fields to authenticate itself to the Bitcoin Core node. RPC Connect points to the IP address of Bitcoin Core (localhost in this case). RPC Port is the port used to communicate with Bitcoin Core, and it should match the Bitcoin Core configuration). The last line is to set the log level to debug for detailed output, useful for troubleshooting. <br>
+            5. Then, to run lighningd using Docker, you have to make sure you mount the lightning.conf and bitcoin.conf files into the container: (Make sure bitcoind is running in regtest beforehand)<br>
+            <br>
+            NOTE: Double-check your file paths and ensure that the configuration files (lightning.conf and bitcoin.conf) are correctly mounted into the container.<br>
+            docker run --network host \<br>
+            -v /home/'user'/.lightning/lightning.conf:/root/.lightning/lightning.conf \<br>
+            -v /home/'user'/.bitcoin/bitcoin.conf:/root/.bitcoin/bitcoin.conf \<br>
+            -v /home/'user'/.lightning:/root/.lightning \<br>
+            elementsproject/lightningd --network=regtest<br>
+            <br>
+            Command meanings:<br>
+            --network host: Allows the Docker container to use the host network, so it can communicate with bitcoind running on the host.<br>
+            <br>
+            -v options: Mounting configuration files and directories into the container:<br>
+            <br>
+            -v /home/'user'/.lightning/lightning.conf:/root/.lightning/lightning.conf: Mounts your local lightning.conf file into the container.<br>
+            <br>
+            -v /home/'user'/.bitcoin/bitcoin.conf:/root/.bitcoin/bitcoin.conf: Mounts your local bitcoin.conf file for connecting lightningd to bitcoind.<br>
+            <br>
+            -v /home/'user'/.lightning:/root/.lightning: Mounts the .lightning directory for lightningd to use.<br>
+            <br>
+            We’re passing the --network=regtest flag to the lightningd command in Docker to override any potential misconfiguration and ensure it’s running on the regtest network.<br>
+            <br>
+            * When running a Lightning node, you might need to specify an address with the --addr=<ip>:<port> option. Here's why:<br>
+            <br>
+            [1]    By default, if no address is specified, the node will bind to an available public IP address (if the system is on a public network) and a random port. This can make it difficult to predict or control the node’s endpoint, which is essential if you want to reliably connect peers or advertise your node.<br>
+            [2]    If you want your node to be accessible over the internet (for public channels), you need to bind it to your public IP address (e.g., 192.168.x.x or your external IP) and ensure the chosen port is open in your firewall.<br>
+            [3]    Specifying the port ensures the node is always accessible on a known endpoint, avoiding confusion when connecting from other peers or applications.<br>
+            [4]    Without that flag you’ll need to inspect the node’s status (lightning-cli –regtest getinfo) each time to discover its active IP/port<br>
+            <br>
+            6. You should see logs showing lightningd initializing and connecting to bitcoind. A message saying "Server started with public key ..." will confirm that lightningd has started successfully.<br>
+            <img class="Default_Image" src="Images/Section3_Step6.png" /> <br>
+            <br>
+            7.  For automation purposes and to avoid typing the Docker command every time, create a shell script to start lighgtningd:<br>
+            ~$ nano ~/start_lightningd.sh<br>
+            <br>
+            Inside the file, add the previous docker command:<br>
+            <img class="Default_Image" src="Images/Section3_Step7.png" /> <br>
+            <br>
+            8. Make sure the script is executable:<br>
+            ~$ chmod +x ~/start_lightningd.sh<br>
+            <br>
+            9. Now you can simply run:<br>
+            ~/start_lightningd.sh<br>
+            <img class="Default_Image" src="Images/Section3_Step9.png" /> <br>
+            <br>
+            To view that lightningd is running you can try this command:<br>
+            ~$ ps aux | grep lightningd<br>
+        </p>
+    </section>
+
+    <section id="section4">
+        <h2>Installing Noise Plugin</h2>
+        <p>
+            1. You must have Bitcoin Core and Lightning running beforehand.<br>
+            <br>
+            2. We need to install Noise inside the lightning docker image, we’ll need to know its Container ID<br>
+            <br>
+            3. The following command shows the currently running containers:<br>
+            ~$ docker ps <br>
+            <img class="Default_Image" src="Images/Section4_Step3.png" /> <br>
+            <br>
+            4.We’ll use the Container ID to open a shell session inside the container :<br>
+            ~$ docker exec -it <CONTAINER ID> /bin/sh<br>
+            This command will allow us to execute commands directly inside the container environment.<br>
+            <img class="Default_Image" src="Images/Section4_Step4.png" /> <br>
+            <br>
+            5. First make sure to update the list of available packages and their versions from the repositories configured in the image<br>
+            # apt update<br>
+            <br>
+            6. Next install the git package from your system’s package repository<br>
+            # apt install git -y <br>
+            <br>
+            7. Then install the python3-venv package, which is used to create virtual environments in Python 3.<br>
+            # apt-get install python3-venv<br>
+            # pip3 install --upgrade pip<br>
+            <br>
+            8. Now we’ll clone the github repository with the Noise plugin, this command will download the entire repository and move you to the noise plugin directory.<br>
+            # git clone https://github.com/lightningd/plugins.git<br>
+            # cd /plugins/archived/noise<br>
+            <img class="Default_Image" src="Images/Section4_Step8.png" /> <br>
+            <br>
+            9. Now that you’re in the noise directory install the two requirements files.<br>
+            # pip install -r requirements.txt<br>
+            # pip install -r requirements-dev.txt<br>
+            <img class="Default_Image" src="Images/Section4_Step9_P1.png" /> <br>
+            <img class="Default_Image" src="Images/Section4_Step9_P2.png" /> <br>
+            <br>
+            10. Activate the plugin with the following command<br>
+            #ligthning-cli --regtest plugin start /path/to/a/plugin – This is to start any plugin<br>
+            <br>
+            In our case the noise plugin should be at the /plugins/archived/noise directory. You can view what directory you’re in by using the pwd command:<br>
+            # lightning-cli --regtest plugin start /plugins/archived/noise/noise.py<br>
+            <img class="Default_Image" src="Images/Section4_Step10_P1.png" /> <br>            
+            <br>
+            After that command you’ll see a list of all your plugins and their status. Near the bottom you should view that the noise plugin is active:<br>
+            <img class="Default_Image" src="Images/Section4_Step10_P2.png" /> <br>
+            <br>            
+            Also if you go to the terminal where you started lightning you’ll see that the noise plugin was started:<br>
+            <img class="Default_Image" src="Images/Section4_Step10_P3.png" /> <br>
+            <br>
+            Now you’ll have access to these new commands with the noise plugin:<br>
+            <br>
+            sendmsg node_id msg [pay] – Sends a chat message. First parameter is the message payload as a string<br>
+            <br>
+            allmsgs – prints all messages that have been received<br>
+            <br>
+            recvmsg [msg_id] – Receives a chat message. Optional parameter ‘msg_id’ can be supplied to return an older message<br>
+            <br>
+            Note: To fix issue running test_chat  It gets resolved by installing pyln-client and pyln-testing version 23.022<br>
+            pip install flaky==3.7.0 pyln-testing==23.02 pyln-client==23.022
+            </p>
+    </section>
+
+    <section id="section5">
+        <h2>Creating a Wallet</h2>
+        <p>
+            1.Create new wallet.<br>
+            ~$ bitcoin-cli -regtest createwallet "'wallet_name'"<br>
+            <br>
+            (if you need to load into it later):<br>
+            ~$ bitcoin-cli -regtest loadwallet “<wallet_name>”<br>
+            <br>
+            2. Verify the wallet:<br>
+            ~$ bitcoin-cli -regtest getwalletinfo<br>
+            <img class="Default_Image" src="Images/Section5_Step2.png" /> <br>    
+            <br>
+            3. Generate test bitcoins on regtest – In regtest mode, you can generate bitcoins yourself.<br>
+            <br>
+            Generate 101 blocks to get coins in your wallet (must mine 101 blocks before bitcoind has matured bitcoin to transfer to another wallet):<br>
+            ~$ bitcoin-cli -regtest generatetoaddress 101 $(bitcoin-cli -regtest getnewaddress)<br>
+            <br>
+            4. Verify your balance:<br>
+            ~$ bitcoin-cli -regtest getbalance<br>
+            <img class="Default_Image" src="Images/Section5_Step4_P1.png" /> <br>    
+            <img class="Default_Image" src="Images/Section5_Step4_P2.png" /> <br>    
+            <br>            
+            5. On lightning node – Create a new lightning wallet:<br>
+            #$ lightning-cli --regtest newaddr<br>
+            <br>
+            (The above command will give you a deposit address for your Lightning wallet).<br>
+            <img class="Default_Image" src="Images/Section5_Step5.png" /> <br>    
+            <br>
+            6. Funding your node – Use the address from the newaddr command to transfer some bitcoin from your Bitcoin Core wallet.<br>
+            <br>
+            Send bitcoins to your Lightning wallet:<br>
+            ~$ bitcoin-cli -regtest sendtoaddress 'lightning-address' 1<br>
+            <img class="Default_Image" src="Images/Section5_Step6_P1.png" /> <br>                
+            The string at the bottom is a transaction ID (TXID), a unique identifier for the Bitcoin transaction you just executed on the regtest network.<br>
+            <br>
+            If there is no fallback fee add “fallbackfee='amount'” into the bitcoin.conf file and restart bitcoin<br>
+            <br>
+            Then, generate one more block to confirm the transaction:<br>
+            ~$ bitcoin-cli -regtest -generate 1<br>
+            <img class="Default_Image" src="Images/Section5_Step6_P2.png" /> <br>    
+            You can check the lightning wallet’s balance with this command:<br>
+            #$ lightning-cli --regtest listfunds<br>
+            <img class="Default_Image" src="Images/Section5_Step6_P3.png" />
+        </p>
+    </section>
+
+    <section id="section6">
+        <h2>Second Node and Channeling Setup</h2>
+        <p>
+            Now we need to setup another node to test communication between each other and use the noise plugin. Since I’m going to be running two nodes on the same virtual environment running one bitcoin node, I’ll need a dedicated configuration and directory structure for each Lightning node. This separation ensures that each node runs independently, listening on unique addresses and ports, and avoids potential conflicts. While it is possible to use the same configuration file with distinct --addr flags, it is best practice to isolate configurations for easier management, troubleshooting, and scalability.<br>
+            <br>
+            1. Create New Folder for the Second Node – First, create a directory structure for your second node:<br>
+            ~$ mkdir -p /home/jmr499/lightning-node2<br>
+            <br>
+            Copy the necessary config file to the new directory (modify as needed):<br>
+            ~$ cp /home/jmr499/.lightning/lightning.conf /home/jmr499/lightning-node2/<br>
+            <br>
+            In my implementation, even though both nodes could theoretically use the same configuration file, a unique folder ensures that each node maintains its own state, logs, and data files. This simplifies management and prevents corruption issues if both nodes try to write to the same files simultaneously.<br>
+            <br>
+            2. Prepare the Bash Script for the Second Node – Create a new bash script to launch the second Lightning node. This script ensures the node operates with an independent identity and port configuration. Let's call it start_lightningd_node2.sh.<br>
+            ~$ nano start_lightningd_node2.sh<br>
+            <br>
+            Here’s the script:
+            <img class="Default_Image" src="Images/Section6_Step2.png" /> <br>
+            <br>
+            Ensure Port Uniqueness: Even though both nodes can interact with the same Bitcoin Core instance through RPC, they must listen on different ports for Lightning traffic. Each node also needs its unique identity and address to establish proper communication channels and connections with peers. This is essential when testing inter-node communication or when scaling the setup with more nodes.<br>
+            <br>
+            --addr=127.0.0.1:9737: We talked about this earlier. This flag specifies the IP and port the second node will bind to. It's critical to assign unique ports to each node. By binding the second node to 127.0.0.1:9737, you avoid conflicts with the first node. If two nodes attempt to use the same port, one will fail to start due to the conflict.<br>
+            <br>
+            Make the script executable<br>
+            ~$ chmod +x start_lightningd_node2.sh<br>
+            <br>
+            To run simply:<br>
+            ~$ ./start_lightsningd_node2.sh<br>
+            <br>
+            3. Test the Second Node – Check if the second node is running:<br>
+            ~$ docker ps<br>
+            <img class="Default_Image" src="Images/Section6_Step3_P1.png" /> <br>
+            To interact with the second Lightning node, access the container’s shell:<br>
+            ~$ docker exec -it 'CONTAINER ID' /bin/sh<br>
+            <br>
+            Use lightning-cli inside the container to confirm the node is working properly:<br>
+            ~$ lightning-cli --regtest getinfo<br>
+            <br>
+            Note the node's ID, as you will need it for future connections.<br>
+            <img class="Default_Image" src="Images/Section6_Step3_P2.png" /> <br>
+            Go back to the noise installation steps and install the plugin in this node!!!<br>
+            <br>
+            4. Generate a Wallet Address for your newly created lightning node.<br>
+            # lightning-cli --regtest newaddr <br>
+            <br>
+            (This will generate a new Bitcoin address for the second node)<br>
+            <br>
+            Outside of the shell, fund that wallet address with it 10 btc<br>
+            ~$ bitcoin-cli -regtest sendtoaddress 'wallet_address' 10<br>
+            <img class="Default_Image" src="Images/Section6_Step4.png" /> <br>
+            5. Confirm the Transaction – After sending the funds, generate a block to confirm the transaction:<br>
+            ~$ bitcoin-cli -regtest -generate 1<br>
+            <img class="Default_Image" src="Images/Section6_Step5_P1.png" /> <br>
+            Check the wallet balance on the second node:<br>
+            # lightning-cli --regtest listfunds<br>
+            <img class="Default_Image" src="Images/Section6_Step5_P2.png" /> <br>
+            6. Connect the first node to the second node – On original first node I connected to the just-created second node:<br>
+            # lightning-cli --regtest connect 'Node2_ID'@127.0.0.1:'Node2_Port'<br>
+            <br>
+            (Verify the connection status on both nodes by running):<br>
+            # lightning-cli --regtest listpeers<br>
+            <br>
+            7. Fund a Channel Between the Nodes – Now that the nodes are connected, fund a channel from the first node to the second:<br>
+            # lightning-cli --regtest fundchannel 'Node2_ID' 20000<br>
+            <img class="Default_Image" src="Images/Section6_Step7_P1.png" /> <br>
+            Generate blocks to confirm the channel funding transaction:<br>
+            ~$ bitcoin-cli -regtest generate 6<br>
+            <br>
+            Verify the channel status on either node using:<br>
+            # lightning-cli --regtest listchannels<br>
+            # lightning-cli –regtest listpeers <br>
+            <img class="Default_Image" src="Images/Section6_Step7_P2.png" /> <br>
+            <img class="Default_Image" src="Images/Section6_Step7_P3.png" /> <br>
+            8. Fundthe Channel Further (to avoid communication problems)<br>
+            <br>
+            On the second node, fund the same channel with additional satoshis:<br>
+            # lightning-cli --regtest fundchannel 'Node1_ID' 100000<br>
+            <br>
+            Generate 10 more blocks to confirm the new transaction:<br>
+            # bitcoin-cli -regtest generate 10<br>
+            <br>
+            9.Verify the Channel Status – After funding the channel from both sides, confirm the final status:<br>
+            # lightning-cli --regtest listchannels<br>
+            <br>
+            10. Finally, you can send messages between lightning nodes using Noise<br>
+            #lightning-cli --regtest sendmsg 'target_node_id' "'message'" 'amount_msat'<br>
+            <img class="Default_Image" src="Images/Section6_Step10.png" /> <br>
+            11. Verify message on receiving node<br>
+            # lightning-cli --regtest allmsgs<br>
+            <br>
+            If the message does not appear immediately on the receiving node, mine more blocks. This will advance the state of the network and confirm any pending messages or transactions.<br>
+            <img class="Default_Image" src="Images/Section6_Step11.png" /> <br>
+            This confirms the message has been successfully received and verified with the corresponding payment.
+        </p>
+    </section>
+
+    <section id="section7">
+        <h2>Payload Generation Steps</h2>
+        <p>
+            Go to client.py file<br>
+            <br>
+            To find client.py (The one not under the web-gui directory tends to work better) <br>
+            Find / -name “client.py”<br>
+            <br>
+            Generate payload<br>
+            <br>
+            Remember the server address and port number<br>
+            Python3 client.py 'server_address' 'port'<br>
+            <br>
+            The payload should be at /modules/clients/droppers relative to the directory with client.py<br>
+            
+        </p>
+    </section>
+
+    <section id="section8">
+        <h2>NodeManager</h2>
+        <p>
+            A new CC server<br>
+            <br>
+            1. First, it connects to known innocent node and funds channel with it using a defined rule<br>
+            <br>
+            2. Can view all channels of nodes that are peers with innocent node<br>
+            <br>
+            3. Filter/limit our search to channels that meet the funding discovery rule.<br>
+            <br>
+            4. Extracts source only Node IDs, ignoring the ID if innocent node also.<br>
+            <br>
+            5. Queries list nodes and specifies the discovered CC ID to extract its address<br>
+            <br>
+            6. Uses the ID + address to connect to the discovered CC<br>
+            <br>
+            7. Exception: A CC node will not connect to a CC server it discovers if that server already has a channel with one of its peers.<br>
+            -Funds a channel to that CC server, the funding amount is unrelated to the discovery rule<br>
+            <br>
+            8. If CC reaches capacity it closes its connection and channels to innocent nodes, so in a way it stops broadcasting itself as a CC. I think its node ID might still appear but only on the destination side of a channel (that doesn't meet funding criteria) if its peer still hasn’t reached capacity (in our discovery this shouldn’t matter because we only focus on the source side when we do list channels).<br>
+        </p>
+    </section>
+
+    <section id="section9">
+        <h2>NoiseManager</h2>
+        <p>
+            1. Any message it receives via nose it relays the same message to all of its peer CC servers (Maximum of n-peers) and to the REST server.<br>
+            <br>
+            2. If it receives a message with an already processed counter it doesn’t relay it at all nor passes it to the REST server.<br>
+            <br>
+            3. Only Botmaster has a say in the message and it controls the counter.<br>
+        </p>
+    </section>
+
+    <section id="section10">
+        <h2>Botmaster</h2>
+        <p>
+            1. Connects to innocent node.<br>
+            <br>
+            2. Listchannels and filters search based on funding rule for valid CC server on either source or destination side excluding the innocent node..<br>
+            <br>
+            3. After picking the CC server it wants to connect to, it queries listnodes with that particular ID to extract its address.<br>
+            <br>
+            4. Makes the connection to that CC server.<br>
+            <br>
+            5. Funds channel with unrelated funding amount.<br>
+            <br>
+            6. Closes connection to innocent node so now it can start commanding the Botmaster via noise payments.<br>
+        </p>
+    </section>
+
+    <section id="section11">
+        <h2>Encountered Problem "Low Disk Space for Oracle VirtualBox Linux Machine"</h2>
+        <p>
+            Download “gparted” live partition, associated with the architecture that your Virtual machine is emulating of the Linux architecture. Put it in an easily accessible location where you can navigate towards when inputting it into the “vm settings  -> Storage -> add a new hard disk or optical drive ” and navigate to the gparted live partition and add it to the storage.  <br>
+            <br>
+            Next, go to the  “VM settings-> system” associated with the virtual machine and not Oracle VirtualBox itself.  Inside the System enable UEFI or EFI . Then change the Boot order to where gparted live partition activates first at the top of the boot order.  UNDO THESE TWO CHANGES WHEN DONE.<br>
+            <br>
+            Close VM settings by hitting OK, done or save.<br>
+            <br>
+            On the VirtualBox Manager go to Tools’ dropdown menu -> Media and you will notice the right window change, Select the VM to change the size of how much storage it is supposed to have, by increasing or adding more room. Take note of how much GB in total this specific virtual machine has. And the (“Location”) of the Virtual Machine.<br>
+            <br>
+            In Windows:<br>
+            Go to Terminal where the Virtualbox program is located<br>
+            -cd C:\Program Files\Oracle\VirtualBox<br>
+            <br>
+            To resize a specific virtual machine you must do this in megabytes, so convert GB into MB, (not in decimal value). <br>
+            -VBoxManage modifymedium disk (“Location”) --resize (Megabyte conversion)<br>
+            <br>
+            If it says unable to modify, then the size was probably smaller than what you input in the Media menu.<br>
+            <br>
+            Start the virtual machine, and enable default options when given a choice. You will eventually be taken to a screen showing the gparted partition manager.<br>
+            Change and allocate storage by moving parts around each other. <br>
+            <br>
+            For example:<br>
+            Sda2 should be where the main memory is and unallocated memory should be the free space.<br>
+            <br>
+            “move” everything that is between the sda2 and unallocated memory out of the way. (Until sda2 and unallocated space are next to each other).<br>
+            Resize sda2 to overtake unallocated space.  <br>
+            <br>
+            Free space preceding MiB =0 <br>
+            and new size MiB = FULL <br>
+            <br>
+            HIT “resize and move” <br>
+            <br>
+            Click the green checkmark near the top.<br>
+            <br>
+            Wait…  Once done.  Close virtual machine.<br>
+            <br>
+            Go to VM settings, and separate or remove the Gparted live from the storage. <br>
+            Undo UEFI and reset the boot order to what it was originally in the System settings of the VM.<br>
+            <br>
+            You should be able to run your Linux virtual machine without issue.<br>
+            If there’s an issue saying a bootable partition is not detected, disable UEFI or EFI in system settings so it does not need the gparted live in the storage to successfully run the system.<br>
+        </p>
+    </section>
+
+    <section id="section12">
+        <h2>Bitcoin Core Commands</h2>
+        <ul>
+            <li>List all Bitcoin commands:
+                <ul>
+                    <li>bitcoin-cli</li>
+                </ul>
+            </li>
+            <li>Bitcoin Core in regtest mode (background process):
+                <ul>
+                    <li>bitcoind -regtest -daemon</li>
+                </ul>
+            </li>
+            <li>Stop Bitcoin Core:
+                <ul>
+                    <li>bitcoin-cli -regtest stop</li>
+                </ul>
+            </li>
+            <li>Generate blocks (Useful for advancing the blockchain to confirm transactions.) – can run any of these option commands:
+                <ul>
+                    <li>bitcoin-cli -regtest generatetoaddress 'number_of_blocks' 'bitcoin_address'</li>
+                    <li>bitcoin-cli -regtest -generate 'number_of_blocks'</li>
+                </ul>
+            </li>
+           <li>Create new wallet:
+                <ul>
+                    <li>-regtest createwallet "'wallet_name'"</li>
+                </ul>
+            </li>
+            <li>if you need to load a wallet:
+                <ul>
+                    <li>~$ bitcoin-cli -regtest loadwallet “'wallet_name'”</li>
+                </ul>
+            </li>
+            <li>Verify the wallet:
+                <ul>
+                    <li>-regtest getwalletinfo</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section id="section13">
+        <h2>Lightning Node Commands</h2>
+        <ul>
+            <li>Start Lightning node:
+                <ul>
+                    <li>~/start_lightningd.sh</li>
+                </ul>
+            </li>
+            <li>Check if Lightning node process is running:
+                <ul>
+                    <li>ps aux | grep lightningd</li>
+                </ul>
+            </li>
+            <li>View available Lightning commands:
+                <ul>
+                    <li>lightning-cli help</li>
+                </ul>
+            </li>
+            <li>Retrieve Lightning node info (ID, alias, channels, etc.):
+                <ul>
+                    <li>lightning-cli --regtest getinfo</li>
+                </ul>
+            </li>
+           <li>Stop Lightning node:
+                <ul>
+                    <li>lightning-cli --regtest stop</li>
+                </ul>
+            </li>
+            <li>List all peers:
+                <ul>
+                    <li>lightning-cli --regtest listpeers</li>
+                </ul>
+            </li>
+            <li>Open a payment channel to another node:
+                <ul>
+                    <li>lightning-cli --regtest fundchannel 'node_id' 'amount_satoshi'</li>
+                </ul>
+            </li>
+            <li>Check lightning wallet’s balance:
+                <ul>
+                    <li>lightning-cli --regtest listfunds</li>
+                </ul>
+            </li>
+            <li>View all messages (if using noise plugin):
+                <ul>
+                    <li>lightning-cli --regtest allmsgs</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section id="section14">
+        <h2>Docker Commands</h2>
+        <ul>
+            <li>List running Docker containers:
+                <ul>
+                    <li>docker ps</li>
+                </ul>
+            </li>
+            <li>View logs of a running Lightning container:
+                <ul>
+                    <li>docker logs $(docker ps -q --filter "ancestor=elementsproject/lightningd")</li>
+                </ul>
+            </li>
+            <li>Access the Lightning container’s shell:
+                <ul>
+                    <li>docker exec -it 'container_id' /bin/sh</li>
+                </ul>
+            </li>
+            <li>Stop a Docker container:
+                <ul>
+                    <li>docker stop 'container_id'</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section id="section15">
+        <h2>Commands for Network Debugging and Maintenance</h2>
+        <ul>
+            <li>Ping a Lightning node to test connection:
+                <ul>
+                    <li>lightning-cli --regtest ping 'node_id'</li>
+                </ul>
+            </li>
+            <li>View open channels on a node:
+                <ul>
+                    <li>lightning-cli --regtest listfunds</li>
+                </ul>
+            </li>
+            <li>Close a channel:
+                <ul>
+                    <li>lightning-cli --regtest close 'channel_id'</li>
+                </ul>
+            </li>
+            <li>Send a message between nodes (using noise plugin):
+                <ul>
+                    <li>lightning-cli --regtest sendmsg 'node_id' "'message'" 'amount_msat'</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section id="section16">
+        <h2>Commands for System Monitoring and Troubleshooting</h2>
+        <ul>
+            <li>Check system resource usage for processes:
+                <ul>
+                    <li>top</li>
+                </ul>
+            </li>
+            <li>List all running processes and filter for specific ones:
+                <ul>
+                    <li>ps aux | grep 'process_name'</li>
+                </ul>
+            </li>
+            <li>Monitor logs in real time:
+                <ul>
+                    <li>tail -f /var/log/syslog</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section id="section17">
+        <h2>Noise Commands</h2>
+        <ul>
+            <li>sendmsg node_id msg [pay] – Sends a chat message. The first parameter is the message payload as a string.
+                <ul>
+                    <li>Example: lightning-cli --regtest sendmsg 'target node ID' “'string message'” 'payment'</payment></li>
+                </ul>
+            </li>
+            <li>allmsgs - Prints all the messages that have been received.</li>
+            <li>recvmsg [msg_id] – Receives a chat message. Optional parameter ‘msg_id’ can be supplied to return an older message.</li>
+        </ul>
+    </section>
+
+    <button id="returnToTopBtn" onclick="scrollToTop()">↑ Return to Top</button>
+
+    <footer>
+        <p>&copy; 2024 Lightning Botnet Project</p>
+    </footer>
+
+    <script src="script.js"></script>
+
+</body>
+</html>

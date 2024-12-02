@@ -1,0 +1,121 @@
+/* General reset and styling */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    background-color: #000000;
+    color: #ffffff;
+}
+
+header {
+    background-color: #575757;
+    color: rgb(255, 255, 255);
+    text-align: center;
+    padding: 20px;
+}
+
+header h1 {
+    font-size: 2.5em;
+}
+
+nav ul {
+    list-style-type: none;
+}
+
+nav ul li {
+    display: inline;
+    margin: 0 15px;
+}
+
+nav ul li a {
+    color: white;
+    text-decoration: none;
+    font-size: 1.1em;
+}
+
+section {
+    padding: 40px 20px;
+    margin: 20px auto;
+    max-width: 900px;
+    background-color: rgb(0, 0, 0);
+    box-shadow: 0 2px 5px rgb(255, 255, 255);
+    border-radius: 8px;
+}
+
+section h2 {
+    font-size: 2em;
+    margin-bottom: 20px;
+}
+
+section p {
+    font-size: 1.2em;
+    margin-bottom: 20px;
+}
+
+section img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin-top: 20px;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    background-color: #333;
+    color: white;
+}
+
+#returnToTopBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #000000;
+    color: white;
+    border: none;
+    padding: 15px;
+    font-size: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: none; /* Initially hidden */
+    transition: background-color 0.3s ease;
+}
+
+/* Styling the embedded image */
+.Default_Image {
+    width: 100%; /* Makes the image responsive to the width of its container */
+    height: auto; /* Keeps the aspect ratio intact */
+    border-radius: 8px; /* Optional: Adds rounded corners */
+    margin-top: 20px; /* Adds spacing above the image */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: Adds a subtle shadow to the image */
+}
+
+ul {
+    list-style-type: disc; /* Default bullet type */
+    padding-left: 20px; /* Add padding to indent */
+}
+
+ul ul {
+    list-style-type: circle; /* Change sub-bullets to circles */
+    padding-left: 30px; /* Increase indentation for sub-bullets */
+}
+
+li {
+    margin-bottom: 10px; /* Add space between list items */
+}
+
+
+
+/* Hover effect */
+#returnToTopBtn:hover {
+    background-color: #000000;
+}
+
+footer p {
+    font-size: 1em;
+}
